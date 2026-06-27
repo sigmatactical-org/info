@@ -1,0 +1,5 @@
+# Production images are built only from `build/image/` (see scripts/prepare-image-context.sh).
+.env
+Dockerfile
+/target
+/build

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sigma Info</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/sigma-favicon-32.png" />
+    <link rel="stylesheet" href="/static/vendor/bootstrap-5.3.3/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/css/site.css" />
+    <link rel="stylesheet" href="/static/css/sigma-dial.css" />
+  </head>
+  <body>
+    <nav class="navbar navbar-expand">
+      <div class="container">
+        <a class="navbar-brand" href="/">
+          <img src="/static/sigma-favicon-32.png" alt="" />
+          <span class="brand-wordmark">Sigma Info</span>
+        </a>
+      </div>
+    </nav>
+    <main class="info-main">
+      <div class="container py-4">
+        <h1>Information</h1>
+        <p class="text-secondary">Documents from the content repository, rendered at build time.</p>
+        <ul class="info-index list-unstyled">
+          {% for entry in entries %}
+          <li><a href="/doc/{{ entry.slug }}">{{ entry.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </main>
+    <footer>
+      <div class="container">
+        <div class="footer-copyright">&copy; {{ copyright_years }} Sigma Tactical Group</div>
+      </div>
+    </footer>
+  </body>
+</html>
