@@ -86,7 +86,10 @@ fn split_front_matter(source: &str) -> (BTreeMap<String, String>, &str) {
 
 fn markdown_to_html(markdown: &str) -> String {
     let mut html_out = String::new();
-    let parser = Parser::new_ext(markdown, Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES);
+    let parser = Parser::new_ext(
+        markdown,
+        Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES,
+    );
     html::push_html(&mut html_out, parser);
     html_out
 }

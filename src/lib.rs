@@ -44,7 +44,8 @@ fn doc_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
 }
 
 /// Site routes: index, `/doc/{slug}`, `/up`, theme static assets, error recovery.
-pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + 'static {
+pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + 'static
+{
     use warp::reply::with::header;
 
     warp::path("up")
