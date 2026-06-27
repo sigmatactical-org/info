@@ -1,48 +1,29 @@
-<!doctype html>
-<html lang="en" data-bs-theme="dark">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{ title }} — Sigma Info</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/sigma-favicon-32.png" />
-    <link rel="stylesheet" href="/static/vendor/bootstrap-5.3.3/bootstrap.min.css" />
-    <link rel="stylesheet" href="/static/css/site.css" />
-    <link rel="stylesheet" href="/static/css/sigma-dial.css" />
-  </head>
-  <body>
-    <nav class="navbar navbar-expand">
-      <div class="container">
-        <a class="navbar-brand" href="/">
-          <img src="/static/sigma-favicon-32.png" alt="" />
-          <span class="brand-wordmark">Sigma Info</span>
-        </a>
-      </div>
-    </nav>
-    <main class="info-main">
-      <div class="container py-4">
-        <div class="row g-4">
-          <aside class="col-lg-3">
-            <nav class="info-nav" aria-label="Documents">
-              <ul class="list-unstyled mb-0">
-                {% for entry in nav %}
-                <li>
-                  <a href="/doc/{{ entry.slug }}"{% if entry.slug == slug %} aria-current="page"{% endif %}>{{ entry.title }}</a>
-                </li>
-                {% endfor %}
-              </ul>
-            </nav>
-          </aside>
-          <article class="col-lg-9 info-doc">
-            <h1>{{ title }}</h1>
-            {{ body|safe }}
-          </article>
-        </div>
-      </div>
-    </main>
-    <footer>
-      <div class="container">
-        <div class="footer-copyright">&copy; {{ copyright_years }} Sigma Tactical Group</div>
-      </div>
-    </footer>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Sigma Info{% endblock %}
+
+{% block brand %}Sigma Info{% endblock %}
+
+{% block main_class %}info-main{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row g-4">
+    <aside class="col-lg-3">
+      <nav class="info-nav" aria-label="Documents">
+        <ul class="list-unstyled mb-0">
+          {% for entry in nav %}
+          <li>
+            <a href="/doc/{{ entry.slug }}"{% if entry.slug == slug %} aria-current="page"{% endif %}>{{ entry.title }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </nav>
+    </aside>
+    <article class="col-lg-9 info-doc">
+      <h1>{{ title }}</h1>
+      {{ body|safe }}
+    </article>
+  </div>
+</div>
+{% endblock %}
