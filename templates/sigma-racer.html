@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}SIGMA-RACER specifications — Sigma Info{% endblock %}
+
+{% block brand %}Sigma Info{% endblock %}
+
+{% block main_class %}info-main product-page{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <p class="mb-3">
+    <a class="text-decoration-none product-back" href="{{ product_url }}">&larr; Back to product</a>
+  </p>
+
+  <p class="text-secondary text-uppercase small mb-1 product-category">SIGMA-RACER</p>
+  <h1 class="mb-1 product-title">Build specifications</h1>
+  <p class="product-lead mb-4">Technical documents from the racer repository.</p>
+
+  {% if spec_documents.is_empty() %}
+  <p class="text-secondary">Specifications are temporarily unavailable. Please try again later.</p>
+  {% else %}
+  <section class="racer-specs" aria-label="Build specifications">
+    <div class="racer-specs__chrome">
+      {% for doc in spec_documents %}
+      <input
+        type="radio"
+        name="racer-spec-tab"
+        id="racer-spec-{{ doc.id }}"
+        class="racer-specs__input"
+        {% if loop.first %}checked{% endif %}
+      />
+      {% endfor %}
+
+      <div class="racer-specs__tabs" role="tablist" aria-label="Specification documents">
+        {% for doc in spec_documents %}
+        <label class="racer-specs__tab" for="racer-spec-{{ doc.id }}" role="tab">
+          {{ doc.label }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="racer-specs__panels">
+        {% for doc in spec_documents %}
+        <article
+          class="racer-specs__panel racer-specs__panel--{{ doc.id }}"
+          role="tabpanel"
+          aria-labelledby="racer-spec-{{ doc.id }}"
+        >
+          <div class="racer-specs__markdown spec-markdown">
+            {{ doc.html|safe }}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

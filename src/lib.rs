@@ -1,6 +1,8 @@
 //! Sigma Info: Markdown-fed information site.
 
+mod config;
 mod content;
+mod specs;
 mod templates;
 
 use std::convert::Infallible;
@@ -43,7 +45,18 @@ fn doc_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
         })
 }
 
-/// Site routes: index, `/doc/{slug}`, `/up`, theme static assets, error recovery.
+fn sigma_racer_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    warp::path!("products" / "sigma-racer")
+        .and(warp::get())
+        .and_then(|| async {
+            let spec_documents = specs::sigma_racer_specs().await;
+            templates::render_sigma_racer_html(spec_documents)
+                .map(warp::reply::html)
+                .map_err(|_| warp::reject::not_found())
+        })
+}
+
+/// Site routes: index, `/doc/{slug}`, `/products/sigma-racer`, `/up`, theme static assets, error recovery.
 pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + 'static
 {
     use warp::reply::with::header;
@@ -53,6 +66,7 @@ pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Cl
         .map(|| warp::reply::with_status("up", warp::http::StatusCode::OK))
         .or(index_page())
         .or(doc_page())
+        .or(sigma_racer_page())
         .or(sigma_theme::warp::static_files())
         .or(sigma_theme::warp::favicon())
         .recover(sigma_theme::warp::handle_rejection)
@@ -94,6 +108,18 @@ mod tests {
         assert_eq!(res.status(), 200);
         let body = std::str::from_utf8(res.body()).unwrap();
         assert!(body.contains("<h1>Welcome</h1>"));
+    }
+
+    #[tokio::test]
+    async fn sigma_racer_page_renders() {
+        let res = warp::test::request()
+            .method("GET")
+            .path("/products/sigma-racer")
+            .reply(&routes())
+            .await;
+        assert_eq!(res.status(), 200);
+        let body = std::str::from_utf8(res.body()).unwrap();
+        assert!(body.contains("Build specifications"));
     }
 
     #[tokio::test]
