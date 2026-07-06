@@ -78,10 +78,7 @@ pub fn render_sigma_racer_html(
 ) -> Result<String, askama::Error> {
     let store_base = crate::config::store_public_base_url();
     SigmaRacerTemplate {
-        product_url: format!(
-            "{}/products/SIGMA-RACER",
-            store_base.trim_end_matches('/')
-        ),
+        product_url: format!("{}/products/SIGMA-RACER", store_base.trim_end_matches('/')),
         spec_documents,
         copyright_years: copyright_years(),
     }
