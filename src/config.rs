@@ -30,9 +30,9 @@ pub fn store_product_url(sku_code: &str) -> String {
 #[must_use]
 pub fn racer_specs_repo() -> (String, String) {
     let value = std::env::var("INFO_RACER_SPECS_REPO")
-        .unwrap_or_else(|_| "sigmatactical-org/racer".to_string());
+        .unwrap_or_else(|_| "sigmatactical-org/sigma-racer-specs".to_string());
     parse_github_repo(&value)
-        .unwrap_or_else(|| ("sigmatactical-org".to_string(), "racer".to_string()))
+        .unwrap_or_else(|| ("sigmatactical-org".to_string(), "sigma-racer-specs".to_string()))
 }
 
 /// Git ref (branch, tag, or commit) for racer specs.
