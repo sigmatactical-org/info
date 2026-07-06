@@ -64,6 +64,7 @@ pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Cl
     warp::path("up")
         .and(warp::get())
         .map(|| warp::reply::with_status("up", warp::http::StatusCode::OK))
+        .or(sigma_pg::health::warp::health_routes("info", None))
         .or(index_page())
         .or(doc_page())
         .or(sigma_racer_page())
