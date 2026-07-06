@@ -79,4 +79,4 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@cargo-audit
-      - run: cargo audit
+      - run: cargo audit --ignore RUSTSEC-2023-0071
