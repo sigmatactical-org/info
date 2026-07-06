@@ -76,9 +76,8 @@ pub fn render_doc_html(doc: &DocEntry) -> Result<String, askama::Error> {
 pub fn render_sigma_racer_html(
     spec_documents: Vec<SpecDocumentView>,
 ) -> Result<String, askama::Error> {
-    let store_base = crate::config::store_public_base_url();
     SigmaRacerTemplate {
-        product_url: format!("{}/products/SIGMA-RACER", store_base.trim_end_matches('/')),
+        product_url: crate::config::store_product_url("sigma-racer"),
         spec_documents,
         copyright_years: copyright_years(),
     }

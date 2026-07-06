@@ -16,6 +16,16 @@ pub fn store_public_base_url() -> String {
         .unwrap_or_else(|| "http://127.0.0.1:8082/".to_string())
 }
 
+/// Storefront URL for a product detail page (`/products/{lowercase-sku}`).
+#[must_use]
+pub fn store_product_url(sku_code: &str) -> String {
+    format!(
+        "{}products/{}",
+        store_public_base_url().trim_end_matches('/'),
+        sku_code.to_lowercase()
+    )
+}
+
 /// GitHub repository (`owner/name`) for SIGMA-RACER build specs markdown.
 #[must_use]
 pub fn racer_specs_repo() -> (String, String) {
