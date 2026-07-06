@@ -64,6 +64,12 @@ docker build -f Dockerfile build/image
 
 Runtime image is Debian 13 distroless; Markdown is baked into the binary (no runtime volume required).
 
+## Copyright & branding
+
+© Sigma Tactical Group. **All rights reserved.**
+
+The **Sigma Tactical Group** name, logos, wordmarks, and site visual identity are **proprietary**. Do not use them outside Sigma Tactical Group products or communications without written permission. See [sigma-theme BRANDING.md](https://github.com/sigmatactical-org/sigma-theme/blob/main/BRANDING.md).
+
 ## License
 
-MIT OR Apache-2.0
+MIT OR Apache-2.0 for **source code** only. Branding remains proprietary.
