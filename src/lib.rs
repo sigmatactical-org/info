@@ -56,6 +56,15 @@ fn sigma_racer_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection>
         })
 }
 
+fn content_security_policy() -> String {
+    let identity_origin = config::identity_public_origin();
+    format!(
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; \
+         img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; \
+         font-src 'self'; connect-src 'self' {identity_origin}; form-action 'self'"
+    )
+}
+
 /// Site routes: index, `/doc/{slug}`, `/products/sigma-racer`, `/up`, theme static assets, error recovery.
 pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Clone + Send + 'static
 {
@@ -71,12 +80,7 @@ pub fn routes() -> impl Filter<Extract = (impl Reply,), Error = Infallible> + Cl
         .or(sigma_theme::warp::static_files())
         .or(sigma_theme::warp::favicon())
         .recover(sigma_theme::warp::handle_rejection)
-        .with(header(
-            "content-security-policy",
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; \
-             img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; \
-             font-src 'self'; connect-src 'self'; form-action 'self'",
-        ))
+        .with(header("content-security-policy", content_security_policy()))
         .with(header("x-content-type-options", "nosniff"))
         .with(header("x-frame-options", "DENY"))
         .with(header("referrer-policy", "strict-origin-when-cross-origin"))
@@ -97,6 +101,8 @@ mod tests {
         assert_eq!(res.status(), 200);
         let body = std::str::from_utf8(res.body()).unwrap();
         assert!(body.contains("Welcome"));
+        assert!(body.contains("aria-label=\"Cart\""));
+        assert!(body.contains("Contact us"));
     }
 
     #[tokio::test]

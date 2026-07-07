@@ -2,12 +2,27 @@ use askama::Template;
 
 use crate::content::{DocEntry, sorted_entries};
 use crate::specs::SpecDocumentView;
+use sigma_identity_nav::{AppSiteNav, render_app_site_nav};
 use sigma_theme::copyright_years;
+
+fn site_nav(return_path: &str) -> Result<String, askama::Error> {
+    render_app_site_nav(&AppSiteNav {
+        identity_base: &crate::config::identity_public_base_url(),
+        app_base: &crate::config::public_base_url(),
+        contact_base: &crate::config::contact_public_base_url(),
+        cart_url: &crate::config::cart_public_base_url(),
+        cart_count: 0,
+        return_path,
+        show_contact_us: true,
+        leading_html: "",
+    })
+}
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     entries: Vec<NavEntry>,
+    site_nav: String,
     copyright_years: String,
 }
 
@@ -18,6 +33,7 @@ struct DocTemplate {
     title: String,
     body: String,
     nav: Vec<NavEntry>,
+    site_nav: String,
     copyright_years: String,
 }
 
@@ -26,6 +42,7 @@ struct DocTemplate {
 struct SigmaRacerTemplate {
     product_url: String,
     spec_documents: Vec<SpecDocumentView>,
+    site_nav: String,
     copyright_years: String,
 }
 
@@ -51,6 +68,7 @@ fn nav_entries() -> Vec<NavEntry> {
 pub fn render_index_html() -> Result<String, askama::Error> {
     IndexTemplate {
         entries: nav_entries(),
+        site_nav: site_nav("/")?,
         copyright_years: copyright_years(),
     }
     .render()
@@ -60,11 +78,13 @@ pub fn render_index_html() -> Result<String, askama::Error> {
 ///
 /// Returns [`askama::Error`] when template rendering fails.
 pub fn render_doc_html(doc: &DocEntry) -> Result<String, askama::Error> {
+    let return_path = format!("/doc/{}", doc.slug);
     DocTemplate {
         slug: doc.slug.clone(),
         title: doc.title.clone(),
         body: doc.body_html.clone(),
         nav: nav_entries(),
+        site_nav: site_nav(&return_path)?,
         copyright_years: copyright_years(),
     }
     .render()
@@ -79,6 +99,7 @@ pub fn render_sigma_racer_html(
     SigmaRacerTemplate {
         product_url: crate::config::store_product_url("sigma-racer"),
         spec_documents,
+        site_nav: site_nav("/products/sigma-racer")?,
         copyright_years: copyright_years(),
     }
     .render()
