@@ -1661,7 +1661,6 @@ dependencies = [
  "pulldown-cmark",
  "reqwest",
  "serde",
- "sigma-identity-nav",
  "sigma-pg",
  "sigma-theme",
  "temp-env",

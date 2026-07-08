@@ -15,7 +15,6 @@ pulldown-cmark = { version = "0.13.0", default-features = false, features = ["ht
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 sigma-theme = { git = "https://github.com/sigmatactical-org/sigma-theme.git", default-features = false, features = ["askama", "warp"] }
-sigma-identity-nav = { git = "https://github.com/sigmatactical-org/identity.git", package = "sigma-identity-nav" }
 sigma-pg = { git = "https://github.com/sigmatactical-org/sigma-pg.git" }
 thiserror = "2.0.17"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
