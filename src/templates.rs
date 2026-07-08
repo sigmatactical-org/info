@@ -2,7 +2,7 @@ use askama::Template;
 
 use crate::content::{DocEntry, sorted_entries};
 use crate::specs::SpecDocumentView;
-use sigma_identity_nav::{AppSiteNav, render_app_site_nav};
+use sigma_theme::site_nav::{AppSiteNav, render_app_site_nav};
 use sigma_theme::copyright_years;
 use sigma_theme::nav::{Breadcrumb, SiteHeader};
 
@@ -18,6 +18,7 @@ fn site_nav(return_path: &str) -> Result<String, askama::Error> {
         cart_url: &crate::config::cart_public_base_url(),
         cart_count: 0,
         return_path,
+        show_cart: true,
         show_contact_us: true,
         leading_html: "",
     })
