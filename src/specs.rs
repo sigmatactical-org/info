@@ -23,6 +23,16 @@ const SPEC_TAB_ORDER: &[&str] = &[
     "emissions",
 ];
 
+/// Root markdown that is not a build specification (legal, meta, tooling).
+const NON_SPEC_MARKDOWN: &[&str] = &[
+    "BRANDING.md",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "LICENSE.md",
+    "SECURITY.md",
+];
+
 /// One racer repo document rendered for the specs page.
 #[derive(Debug, Clone)]
 pub struct SpecDocumentView {
@@ -132,7 +142,7 @@ async fn fetch_racer_specs(
     let mut sources = Vec::new();
 
     for entry in entries {
-        if !entry.name.ends_with(".md") {
+        if !is_spec_markdown(&entry.name) {
             continue;
         }
         let Some(download_url) = entry.download_url else {
@@ -168,6 +178,15 @@ struct SpecSource {
     id: String,
     label: String,
     markdown: String,
+}
+
+fn is_spec_markdown(filename: &str) -> bool {
+    if !filename.ends_with(".md") {
+        return false;
+    }
+    !NON_SPEC_MARKDOWN
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(filename))
 }
 
 fn spec_id_from_filename(filename: &str) -> String {
@@ -238,6 +257,18 @@ mod tests {
             "emissions"
         );
         assert_eq!(spec_label_from_filename("efi.md"), "Efi");
+    }
+
+    #[test]
+    fn skips_non_spec_root_markdown() {
+        assert!(!is_spec_markdown("BRANDING.md"));
+        assert!(!is_spec_markdown("branding.md"));
+        assert!(!is_spec_markdown("LICENSE.md"));
+        assert!(!is_spec_markdown("CONTRIBUTING.md"));
+        assert!(!is_spec_markdown("Cargo.toml"));
+        assert!(is_spec_markdown("README.md"));
+        assert!(is_spec_markdown("engine.md"));
+        assert!(is_spec_markdown("emissions_certification.md"));
     }
 
     #[test]
