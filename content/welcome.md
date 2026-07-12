@@ -3,10 +3,10 @@ title: Welcome
 order: 1
 ---
 
-Sigma Info publishes Markdown from a content repository. Edit files under `content/` (or sync from a dedicated repo before `cargo build`).
+Sigma Info publishes Markdown from a content repository. Edit files under `content/` in this repo (or point `INFO_CONTENT_REPO` at a dedicated one).
 
 ## How it works
 
 1. Authors commit `.md` files with optional YAML front matter.
-2. CI checks out the content repo and builds the site.
-3. Pages are embedded in the binary and served with shared Sigma theme assets.
+2. The service fetches documents from GitHub at request time and caches them for an hour.
+3. Pages are served with shared Sigma theme assets.

@@ -36,10 +36,11 @@ fn doc_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
     warp::path!("doc" / String)
         .and(warp::get())
         .and_then(|slug: String| async move {
-            let Some(doc) = get(&slug) else {
+            let Some(doc) = get(&slug).await else {
                 return Err(warp::reject::not_found());
             };
-            templates::render_doc_html(doc)
+            templates::render_doc_html(&doc)
+                .await
                 .map(warp::reply::html)
                 .map_err(|_| warp::reject::not_found())
         })
@@ -92,7 +93,7 @@ mod tests {
     use warp::http::StatusCode;
 
     #[tokio::test]
-    async fn index_lists_documents() {
+    async fn index_lists_projects() {
         let res = warp::test::request()
             .method("GET")
             .path("/")
@@ -100,7 +101,6 @@ mod tests {
             .await;
         assert_eq!(res.status(), 200);
         let body = std::str::from_utf8(res.body()).unwrap();
-        assert!(body.contains("Welcome"));
         assert!(body.contains("aria-label=\"Cart\""));
         assert!(body.contains("Contact us"));
         assert!(body.contains("SIGMA-RACER"));

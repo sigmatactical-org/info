@@ -1,12 +1,15 @@
-//! Load Markdown documents from the embedded `content/` tree.
+//! Load Markdown documents from a GitHub content repository at request time.
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
-use include_dir::{Dir, include_dir};
 use pulldown_cmark::{Options, Parser, html};
+use serde::Deserialize;
+use thiserror::Error;
+use tokio::sync::RwLock;
 
-static CONTENT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/content");
+use crate::config;
 
 #[derive(Debug, Clone)]
 pub struct DocEntry {
@@ -16,55 +19,165 @@ pub struct DocEntry {
     pub body_html: String,
 }
 
-static DOCS: OnceLock<BTreeMap<String, DocEntry>> = OnceLock::new();
-
-/// All documents keyed by slug, sorted by `order` then title when listed.
-pub fn docs() -> &'static BTreeMap<String, DocEntry> {
-    DOCS.get_or_init(load_docs)
+#[derive(Debug, Error)]
+enum ContentError {
+    #[error("HTTP request failed: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("content request failed: {0}")]
+    Request(String),
 }
 
-pub fn sorted_entries() -> Vec<&'static DocEntry> {
-    let mut entries: Vec<_> = docs().values().collect();
+#[derive(Debug, Deserialize)]
+struct GithubContentEntry {
+    name: String,
+    download_url: Option<String>,
+}
+
+struct CacheState {
+    docs: Option<Vec<DocEntry>>,
+    fetched_at: Option<Instant>,
+}
+
+impl CacheState {
+    const fn empty() -> Self {
+        Self {
+            docs: None,
+            fetched_at: None,
+        }
+    }
+
+    fn is_fresh(&self, ttl: Duration) -> bool {
+        self.docs
+            .as_ref()
+            .is_some_and(|_| self.fetched_at.is_some_and(|at| at.elapsed() < ttl))
+    }
+}
+
+struct ContentCache {
+    client: reqwest::Client,
+    state: RwLock<CacheState>,
+}
+
+impl ContentCache {
+    fn global() -> &'static ContentCache {
+        static CACHE: OnceLock<ContentCache> = OnceLock::new();
+        CACHE.get_or_init(|| ContentCache {
+            client: reqwest::Client::new(),
+            state: RwLock::new(CacheState::empty()),
+        })
+    }
+}
+
+/// All documents from the content repository, cached for [`config::content_cache_ttl`].
+pub async fn docs() -> Vec<DocEntry> {
+    let cache = ContentCache::global();
+    let ttl = config::content_cache_ttl();
+
+    {
+        let state = cache.state.read().await;
+        if state.is_fresh(ttl) {
+            return state.docs.clone().unwrap_or_default();
+        }
+    }
+
+    let (owner, repo) = config::content_repo();
+    match fetch_docs(
+        &cache.client,
+        &owner,
+        &repo,
+        &config::content_repo_path(),
+        &config::content_ref(),
+    )
+    .await
+    {
+        Ok(docs) => {
+            let mut state = cache.state.write().await;
+            state.docs = Some(docs.clone());
+            state.fetched_at = Some(Instant::now());
+            docs
+        }
+        Err(_) => {
+            let state = cache.state.read().await;
+            state.docs.clone().unwrap_or_default()
+        }
+    }
+}
+
+/// All documents sorted by `order` then title.
+pub async fn sorted_entries() -> Vec<DocEntry> {
+    let mut entries = docs().await;
     entries.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.title.cmp(&b.title)));
     entries
 }
 
-pub fn get(slug: &str) -> Option<&'static DocEntry> {
-    docs().get(slug)
+pub async fn get(slug: &str) -> Option<DocEntry> {
+    docs().await.into_iter().find(|doc| doc.slug == slug)
 }
 
-fn load_docs() -> BTreeMap<String, DocEntry> {
-    let mut map = BTreeMap::new();
-    for file in CONTENT.files() {
-        let Some(path) = file.path().to_str() else {
-            continue;
-        };
-        if !path.ends_with(".md") {
+async fn fetch_docs(
+    client: &reqwest::Client,
+    owner: &str,
+    repo: &str,
+    path: &str,
+    git_ref: &str,
+) -> Result<Vec<DocEntry>, ContentError> {
+    let list_url =
+        format!("https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={git_ref}");
+    let response = client
+        .get(&list_url)
+        .header("accept", "application/vnd.github+json")
+        .header("user-agent", "sigma-info")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(ContentError::Request(format!("list {status}: {body}")));
+    }
+
+    let entries: Vec<GithubContentEntry> = response.json().await?;
+    let mut docs = Vec::new();
+
+    for entry in entries {
+        if !entry.name.ends_with(".md") {
             continue;
         }
-        let slug = path.trim_end_matches(".md").to_string();
-        let source = file.contents_utf8().unwrap_or("");
-        let (meta, markdown) = split_front_matter(source);
-        let title = meta
-            .get("title")
-            .cloned()
-            .unwrap_or_else(|| slug.replace('-', " "));
-        let order = meta
-            .get("order")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(100);
-        let body_html = markdown_to_html(markdown);
-        map.insert(
-            slug.clone(),
-            DocEntry {
-                slug,
-                title,
-                order,
-                body_html,
-            },
-        );
+        let Some(download_url) = entry.download_url else {
+            continue;
+        };
+        let source = client
+            .get(download_url)
+            .header("user-agent", "sigma-info")
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        docs.push(parse_doc(&entry.name, &source));
     }
-    map
+
+    Ok(docs)
+}
+
+fn parse_doc(filename: &str, source: &str) -> DocEntry {
+    let slug = filename.trim_end_matches(".md").to_string();
+    let (meta, markdown) = split_front_matter(source);
+    let title = meta
+        .get("title")
+        .cloned()
+        .unwrap_or_else(|| slug.replace('-', " "));
+    let order = meta
+        .get("order")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
+    let body_html = markdown_to_html(markdown);
+    DocEntry {
+        slug,
+        title,
+        order,
+        body_html,
+    }
 }
 
 fn split_front_matter(source: &str) -> (BTreeMap<String, String>, &str) {
@@ -99,16 +212,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn loads_embedded_content() {
-        let docs = docs();
-        assert!(docs.contains_key("welcome"));
-        assert!(docs.contains_key("getting-started"));
+    fn parses_front_matter_title_and_order() {
+        let doc = parse_doc(
+            "welcome.md",
+            "---\ntitle: Welcome\norder: 1\n---\n\nHello.\n",
+        );
+        assert_eq!(doc.slug, "welcome");
+        assert_eq!(doc.title, "Welcome");
+        assert_eq!(doc.order, 1);
+        assert!(doc.body_html.contains("<p>Hello.</p>"));
     }
 
     #[test]
-    fn parses_front_matter_title() {
-        let doc = get("welcome").expect("welcome.md");
-        assert_eq!(doc.title, "Welcome");
-        assert!(doc.body_html.contains("<p>"));
+    fn falls_back_to_slug_title_and_default_order_without_front_matter() {
+        let doc = parse_doc("getting-started.md", "No front matter here.\n");
+        assert_eq!(doc.title, "getting started");
+        assert_eq!(doc.order, 100);
     }
 }

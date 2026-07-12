@@ -27,7 +27,6 @@ fn site_nav(return_path: &str) -> Result<String, askama::Error> {
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
-    entries: Vec<NavEntry>,
     projects: Vec<ProjectEntry>,
     site_header: SiteHeader,
     site_nav: String,
@@ -77,8 +76,9 @@ struct NavEntry {
     title: String,
 }
 
-fn nav_entries() -> Vec<NavEntry> {
+async fn nav_entries() -> Vec<NavEntry> {
     sorted_entries()
+        .await
         .into_iter()
         .map(|d| NavEntry {
             slug: d.slug.clone(),
@@ -92,7 +92,6 @@ fn nav_entries() -> Vec<NavEntry> {
 /// Returns [`askama::Error`] when template rendering fails.
 pub fn render_index_html() -> Result<String, askama::Error> {
     IndexTemplate {
-        entries: nav_entries(),
         projects: projects(),
         site_header: page_header("Sigma Info"),
         site_nav: site_nav("/")?,
@@ -104,13 +103,13 @@ pub fn render_index_html() -> Result<String, askama::Error> {
 /// # Errors
 ///
 /// Returns [`askama::Error`] when template rendering fails.
-pub fn render_doc_html(doc: &DocEntry) -> Result<String, askama::Error> {
+pub async fn render_doc_html(doc: &DocEntry) -> Result<String, askama::Error> {
     let return_path = format!("/doc/{}", doc.slug);
     DocTemplate {
         slug: doc.slug.clone(),
         title: doc.title.clone(),
         body: doc.body_html.clone(),
-        nav: nav_entries(),
+        nav: nav_entries().await,
         site_header: page_header("Sigma Info")
             .with_breadcrumb(Breadcrumb::link("/", "Info"))
             .with_breadcrumb(Breadcrumb::current(doc.title.clone())),
