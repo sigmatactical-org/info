@@ -103,6 +103,8 @@ mod tests {
         assert!(body.contains("Welcome"));
         assert!(body.contains("aria-label=\"Cart\""));
         assert!(body.contains("Contact us"));
+        assert!(body.contains("SIGMA-RACER"));
+        assert!(body.contains("href=\"/products/sigma-racer\""));
     }
 
     #[tokio::test]

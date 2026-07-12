@@ -9,6 +9,24 @@
 <div class="container py-4">
   <h1>Information</h1>
   <p class="text-secondary">Documents from the content repository, rendered at build time.</p>
+
+  {% if !projects.is_empty() %}
+  <h2 class="h5 mt-4 mb-2">Projects</h2>
+  <div class="row g-3 mb-4">
+    {% for project in projects %}
+    <div class="col-md-6">
+      <a class="card h-100 text-decoration-none" href="{{ project.href }}">
+        <div class="card-body">
+          <h3 class="h6 card-title mb-1">{{ project.title }}</h3>
+          <p class="card-text text-muted mb-0">{{ project.description }}</p>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2 class="h5 mb-2">Documents</h2>
   <ul class="info-index list-unstyled">
     {% for entry in entries %}
     <li><a href="/doc/{{ entry.slug }}">{{ entry.title }}</a></li>

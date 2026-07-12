@@ -28,9 +28,26 @@ fn site_nav(return_path: &str) -> Result<String, askama::Error> {
 #[template(path = "index.html")]
 struct IndexTemplate {
     entries: Vec<NavEntry>,
+    projects: Vec<ProjectEntry>,
     site_header: SiteHeader,
     site_nav: String,
     copyright_years: String,
+}
+
+#[derive(Clone)]
+struct ProjectEntry {
+    title: String,
+    href: String,
+    description: String,
+}
+
+/// Product pages this site serves, linked from the landing page.
+fn projects() -> Vec<ProjectEntry> {
+    vec![ProjectEntry {
+        title: "SIGMA-RACER".to_string(),
+        href: "/products/sigma-racer".to_string(),
+        description: "Build specifications and engineering documents.".to_string(),
+    }]
 }
 
 #[derive(Template)]
@@ -76,6 +93,7 @@ fn nav_entries() -> Vec<NavEntry> {
 pub fn render_index_html() -> Result<String, askama::Error> {
     IndexTemplate {
         entries: nav_entries(),
+        projects: projects(),
         site_header: page_header("Sigma Info"),
         site_nav: site_nav("/")?,
         copyright_years: copyright_years(),
