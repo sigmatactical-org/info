@@ -102,7 +102,8 @@ mod tests {
         assert_eq!(res.status(), 200);
         let body = std::str::from_utf8(res.body()).unwrap();
         assert!(body.contains("aria-label=\"Cart\""));
-        assert!(body.contains("Contact us"));
+        // info's chrome renders with show_contact_us: false (see templates.rs).
+        assert!(!body.contains("Contact us"));
         assert!(body.contains("SIGMA-RACER"));
         assert!(body.contains("href=\"/products/sigma-racer\""));
     }
