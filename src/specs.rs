@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn orders_known_tabs_before_unknown_alphabetically() {
-        let mut sources = vec![
+        let mut sources = [
             SpecSource {
                 id: "zzz".into(),
                 label: "Zzz".into(),

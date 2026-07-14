@@ -1,5 +1,8 @@
 # sigma-info
 
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![MSRV](https://img.shields.io/badge/MSRV-1.97.0-blue.svg)](https://www.rust-lang.org)
+
 Markdown-fed information sharing site for Sigma Tactical Group. Documents live in **`content/`** in this repository (or synced from another repo before build), are embedded at compile time, and served with shared [sigma-theme](https://github.com/sigmatactical-org/sigma-theme) chrome.
 
 Repository: https://github.com/sigmatactical-org/info

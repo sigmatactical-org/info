@@ -69,6 +69,7 @@ impl ContentCache {
 }
 
 /// All documents from the content repository, cached for [`config::content_cache_ttl`].
+/// Built-in pages (e.g. Terms) are always merged in so checkout works offline / in kind.
 pub async fn docs() -> Vec<DocEntry> {
     let cache = ContentCache::global();
     let ttl = config::content_cache_ttl();
@@ -81,7 +82,7 @@ pub async fn docs() -> Vec<DocEntry> {
     }
 
     let (owner, repo) = config::content_repo();
-    match fetch_docs(
+    let mut docs = match fetch_docs(
         &cache.client,
         &owner,
         &repo,
@@ -90,15 +91,27 @@ pub async fn docs() -> Vec<DocEntry> {
     )
     .await
     {
-        Ok(docs) => {
-            let mut state = cache.state.write().await;
-            state.docs = Some(docs.clone());
-            state.fetched_at = Some(Instant::now());
-            docs
-        }
+        Ok(docs) => docs,
         Err(_) => {
             let state = cache.state.read().await;
             state.docs.clone().unwrap_or_default()
+        }
+    };
+    merge_builtin_docs(&mut docs);
+
+    let mut state = cache.state.write().await;
+    state.docs = Some(docs.clone());
+    state.fetched_at = Some(Instant::now());
+    docs
+}
+
+fn merge_builtin_docs(docs: &mut Vec<DocEntry>) {
+    let builtins = [parse_doc("terms.md", include_str!("../content/terms.md"))];
+    for builtin in builtins {
+        if let Some(existing) = docs.iter_mut().find(|d| d.slug == builtin.slug) {
+            *existing = builtin;
+        } else {
+            docs.push(builtin);
         }
     }
 }
@@ -228,5 +241,14 @@ mod tests {
         let doc = parse_doc("getting-started.md", "No front matter here.\n");
         assert_eq!(doc.title, "getting started");
         assert_eq!(doc.order, 100);
+    }
+
+    #[test]
+    fn builtin_terms_has_title() {
+        let mut docs = Vec::new();
+        merge_builtin_docs(&mut docs);
+        let terms = docs.iter().find(|d| d.slug == "terms").expect("terms");
+        assert_eq!(terms.title, "Terms and Conditions");
+        assert!(terms.body_html.contains("Deposit"));
     }
 }
