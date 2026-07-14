@@ -1,5 +1,7 @@
 //! Sigma Info: Markdown-fed information site.
 
+#![forbid(unsafe_code)]
+
 mod config;
 mod content;
 mod specs;
