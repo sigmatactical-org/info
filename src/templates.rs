@@ -1,3 +1,14 @@
+mod doc_template;
+mod index_template;
+mod nav_entry;
+mod project_entry;
+mod sigma_racer_template;
+pub(crate) use doc_template::DocTemplate;
+pub(crate) use index_template::IndexTemplate;
+pub(crate) use nav_entry::NavEntry;
+pub(crate) use project_entry::ProjectEntry;
+pub(crate) use sigma_racer_template::SigmaRacerTemplate;
+
 use askama::Template;
 
 use crate::content::{DocEntry, sorted_entries};
@@ -24,22 +35,6 @@ fn site_nav(return_path: &str) -> Result<String, askama::Error> {
     })
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    projects: Vec<ProjectEntry>,
-    site_header: SiteHeader,
-    site_nav: String,
-    copyright_years: String,
-}
-
-#[derive(Clone)]
-struct ProjectEntry {
-    title: String,
-    href: String,
-    description: String,
-}
-
 /// Product pages this site serves, linked from the landing page.
 fn projects() -> Vec<ProjectEntry> {
     vec![ProjectEntry {
@@ -47,33 +42,6 @@ fn projects() -> Vec<ProjectEntry> {
         href: "/products/sigma-racer".to_string(),
         description: "Build specifications and engineering documents.".to_string(),
     }]
-}
-
-#[derive(Template)]
-#[template(path = "doc.html")]
-struct DocTemplate {
-    slug: String,
-    title: String,
-    body: String,
-    nav: Vec<NavEntry>,
-    site_header: SiteHeader,
-    site_nav: String,
-    copyright_years: String,
-}
-
-#[derive(Template)]
-#[template(path = "sigma-racer.html")]
-struct SigmaRacerTemplate {
-    spec_documents: Vec<SpecDocumentView>,
-    site_header: SiteHeader,
-    site_nav: String,
-    copyright_years: String,
-}
-
-#[derive(Clone)]
-struct NavEntry {
-    slug: String,
-    title: String,
 }
 
 async fn nav_entries() -> Vec<NavEntry> {

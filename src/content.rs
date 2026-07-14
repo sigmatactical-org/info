@@ -1,72 +1,22 @@
 //! Load Markdown documents from a GitHub content repository at request time.
 
+mod cache_state;
+mod content_cache;
+mod content_error;
+mod doc_entry;
+mod github_content_entry;
+pub(crate) use cache_state::CacheState;
+pub(crate) use content_cache::ContentCache;
+pub(crate) use content_error::ContentError;
+pub use doc_entry::DocEntry;
+pub(crate) use github_content_entry::GithubContentEntry;
+
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use pulldown_cmark::{Options, Parser, html};
-use serde::Deserialize;
-use thiserror::Error;
-use tokio::sync::RwLock;
 
 use crate::config;
-
-#[derive(Debug, Clone)]
-pub struct DocEntry {
-    pub slug: String,
-    pub title: String,
-    pub order: i32,
-    pub body_html: String,
-}
-
-#[derive(Debug, Error)]
-enum ContentError {
-    #[error("HTTP request failed: {0}")]
-    Http(#[from] reqwest::Error),
-    #[error("content request failed: {0}")]
-    Request(String),
-}
-
-#[derive(Debug, Deserialize)]
-struct GithubContentEntry {
-    name: String,
-    download_url: Option<String>,
-}
-
-struct CacheState {
-    docs: Option<Vec<DocEntry>>,
-    fetched_at: Option<Instant>,
-}
-
-impl CacheState {
-    const fn empty() -> Self {
-        Self {
-            docs: None,
-            fetched_at: None,
-        }
-    }
-
-    fn is_fresh(&self, ttl: Duration) -> bool {
-        self.docs
-            .as_ref()
-            .is_some_and(|_| self.fetched_at.is_some_and(|at| at.elapsed() < ttl))
-    }
-}
-
-struct ContentCache {
-    client: reqwest::Client,
-    state: RwLock<CacheState>,
-}
-
-impl ContentCache {
-    fn global() -> &'static ContentCache {
-        static CACHE: OnceLock<ContentCache> = OnceLock::new();
-        CACHE.get_or_init(|| ContentCache {
-            client: reqwest::Client::new(),
-            state: RwLock::new(CacheState::empty()),
-        })
-    }
-}
 
 /// All documents from the content repository, cached for [`config::content_cache_ttl`].
 /// Built-in pages (e.g. Terms) are always merged in so checkout works offline / in kind.

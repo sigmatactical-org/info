@@ -1,12 +1,21 @@
 //! Build spec sheets fetched from the racer GitHub repository at request time.
 
-use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+mod cache_state;
+mod github_content_entry;
+mod spec_document_view;
+mod spec_source;
+mod specs_cache;
+mod specs_error;
+pub(crate) use cache_state::CacheState;
+pub(crate) use github_content_entry::GithubContentEntry;
+pub use spec_document_view::SpecDocumentView;
+pub(crate) use spec_source::SpecSource;
+pub(crate) use specs_cache::SpecsCache;
+pub(crate) use specs_error::SpecsError;
+
+use std::time::Instant;
 
 use pulldown_cmark::{Options, Parser, html};
-use serde::Deserialize;
-use thiserror::Error;
-use tokio::sync::RwLock;
 
 use crate::config;
 
@@ -32,63 +41,6 @@ const NON_SPEC_MARKDOWN: &[&str] = &[
     "LICENSE.md",
     "SECURITY.md",
 ];
-
-/// One racer repo document rendered for the specs page.
-#[derive(Debug, Clone)]
-pub struct SpecDocumentView {
-    pub id: String,
-    pub label: String,
-    pub html: String,
-}
-
-#[derive(Debug, Error)]
-enum SpecsError {
-    #[error("HTTP request failed: {0}")]
-    Http(#[from] reqwest::Error),
-    #[error("racer specs request failed: {0}")]
-    Request(String),
-}
-
-#[derive(Debug, Deserialize)]
-struct GithubContentEntry {
-    name: String,
-    download_url: Option<String>,
-}
-
-struct CacheState {
-    documents: Option<Vec<SpecDocumentView>>,
-    fetched_at: Option<Instant>,
-}
-
-impl CacheState {
-    const fn empty() -> Self {
-        Self {
-            documents: None,
-            fetched_at: None,
-        }
-    }
-
-    fn is_fresh(&self, ttl: Duration) -> bool {
-        self.documents
-            .as_ref()
-            .is_some_and(|_| self.fetched_at.is_some_and(|at| at.elapsed() < ttl))
-    }
-}
-
-struct SpecsCache {
-    client: reqwest::Client,
-    state: RwLock<CacheState>,
-}
-
-impl SpecsCache {
-    fn global() -> &'static SpecsCache {
-        static CACHE: OnceLock<SpecsCache> = OnceLock::new();
-        CACHE.get_or_init(|| SpecsCache {
-            client: reqwest::Client::new(),
-            state: RwLock::new(CacheState::empty()),
-        })
-    }
-}
 
 /// Load SIGMA-RACER build specs from the racer repository.
 pub async fn sigma_racer_specs() -> Vec<SpecDocumentView> {
@@ -172,12 +124,6 @@ async fn fetch_racer_specs(
             html: render_markdown_html(&source.markdown),
         })
         .collect())
-}
-
-struct SpecSource {
-    id: String,
-    label: String,
-    markdown: String,
 }
 
 fn is_spec_markdown(filename: &str) -> bool {
