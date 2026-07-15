@@ -14,11 +14,11 @@ use askama::Template;
 use crate::content::{DocEntry, sorted_entries};
 use crate::specs::SpecDocumentView;
 use sigma_theme::copyright_years;
-use sigma_theme::nav::{Breadcrumb, SiteHeader};
+use sigma_theme::nav::{Breadcrumb, SiteHeader, site_menu};
 use sigma_theme::site_nav::{AppSiteNav, render_app_site_nav};
 
-fn page_header(brand: &str) -> SiteHeader {
-    SiteHeader::new(brand)
+fn page_header() -> SiteHeader {
+    SiteHeader::new().with_menu(site_menu(None))
 }
 
 fn site_nav(return_path: &str) -> Result<String, askama::Error> {
@@ -61,7 +61,7 @@ async fn nav_entries() -> Vec<NavEntry> {
 pub fn render_index_html() -> Result<String, askama::Error> {
     IndexTemplate {
         projects: projects(),
-        site_header: page_header("Sigma Info"),
+        site_header: page_header(),
         site_nav: site_nav("/")?,
         copyright_years: copyright_years(),
     }
@@ -78,7 +78,7 @@ pub async fn render_doc_html(doc: &DocEntry) -> Result<String, askama::Error> {
         title: doc.title.clone(),
         body: doc.body_html.clone(),
         nav: nav_entries().await,
-        site_header: page_header("Sigma Info")
+        site_header: page_header()
             .with_breadcrumb(Breadcrumb::link("/", "Info"))
             .with_breadcrumb(Breadcrumb::current(doc.title.clone())),
         site_nav: site_nav(&return_path)?,
@@ -97,7 +97,7 @@ pub fn render_sigma_racer_html(
     let product_url = crate::config::store_product_url("sigma-racer");
     SigmaRacerTemplate {
         spec_documents,
-        site_header: page_header("Sigma Info")
+        site_header: page_header()
             .with_breadcrumb(Breadcrumb::link(&store_url, "Store"))
             .with_breadcrumb(Breadcrumb::link(&product_url, "SIGMA-RACER"))
             .with_breadcrumb(Breadcrumb::current("Build specifications")),
