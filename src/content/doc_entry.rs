@@ -1,8 +1,6 @@
 //! [`DocEntry`].
 
-#[allow(unused_imports)]
-use super::*;
-
+/// One informational document: slug, title, sort order, and rendered body.
 #[derive(Debug, Clone)]
 pub struct DocEntry {
     pub slug: String,

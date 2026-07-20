@@ -1,11 +1,8 @@
 //! [`ProjectEntry`].
 
-#[allow(unused_imports)]
-use super::*;
-
-#[derive(Clone)]
+/// A product page linked from the landing page.
 pub(crate) struct ProjectEntry {
-    pub(crate) title: String,
-    pub(crate) href: String,
-    pub(crate) description: String,
+    pub(crate) title: &'static str,
+    pub(crate) href: &'static str,
+    pub(crate) description: &'static str,
 }

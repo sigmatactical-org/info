@@ -1,126 +1,76 @@
 //! Load Markdown documents from a GitHub content repository at request time.
 
-mod cache_state;
-mod content_cache;
-mod content_error;
 mod doc_entry;
-mod github_content_entry;
-pub(crate) use cache_state::CacheState;
-pub(crate) use content_cache::ContentCache;
-pub(crate) use content_error::ContentError;
 pub use doc_entry::DocEntry;
-pub(crate) use github_content_entry::GithubContentEntry;
 
-use std::collections::BTreeMap;
-use std::time::Instant;
+use std::sync::{Arc, OnceLock};
 
-use pulldown_cmark::{Options, Parser, html};
+use sigma_theme::cache::TtlCache;
+use sigma_theme::content::{
+    ContentError, fetch_markdown_files, markdown_to_html, split_front_matter,
+};
 
 use crate::config;
 
+/// User agent identifying this service to the GitHub API.
+const USER_AGENT: &str = "sigma-info";
+
+/// TTL cache of the GitHub-backed doc listing (single-flight, stale-on-error).
+static DOCS: TtlCache<Vec<DocEntry>> = TtlCache::new();
+
 /// All documents from the content repository, cached for [`config::content_cache_ttl`].
 /// Built-in pages (e.g. Terms) are always merged in so checkout works offline / in kind.
-pub async fn docs() -> Vec<DocEntry> {
-    let cache = ContentCache::global();
-    let ttl = config::content_cache_ttl();
-
-    {
-        let state = cache.state.read().await;
-        if state.is_fresh(ttl) {
-            return state.docs.clone().unwrap_or_default();
-        }
-    }
-
-    let (owner, repo) = config::content_repo();
-    let mut docs = match fetch_docs(
-        &cache.client,
-        &owner,
-        &repo,
-        &config::content_repo_path(),
-        &config::content_ref(),
-    )
-    .await
-    {
-        Ok(docs) => docs,
-        Err(_) => {
-            let state = cache.state.read().await;
-            state.docs.clone().unwrap_or_default()
-        }
-    };
-    merge_builtin_docs(&mut docs);
-
-    let mut state = cache.state.write().await;
-    state.docs = Some(docs.clone());
-    state.fetched_at = Some(Instant::now());
-    docs
+pub async fn docs() -> Arc<Vec<DocEntry>> {
+    DOCS.get_or_fetch(config::content_cache_ttl(), fetch_docs)
+        .await
+        .unwrap_or_else(|_| Arc::new(builtin_docs().to_vec()))
 }
 
-fn merge_builtin_docs(docs: &mut Vec<DocEntry>) {
-    let builtins = [parse_doc("terms.md", include_str!("../content/terms.md"))];
-    for builtin in builtins {
-        if let Some(existing) = docs.iter_mut().find(|d| d.slug == builtin.slug) {
-            *existing = builtin;
-        } else {
-            docs.push(builtin);
-        }
-    }
-}
-
-/// All documents sorted by `order` then title.
-pub async fn sorted_entries() -> Vec<DocEntry> {
-    let mut entries = docs().await;
+/// Entries of `docs` sorted by `order` then title.
+pub fn sorted_entries(docs: &[DocEntry]) -> Vec<&DocEntry> {
+    let mut entries: Vec<&DocEntry> = docs.iter().collect();
     entries.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.title.cmp(&b.title)));
     entries
 }
 
-pub async fn get(slug: &str) -> Option<DocEntry> {
-    docs().await.into_iter().find(|doc| doc.slug == slug)
+/// Look up a document of `docs` by slug.
+pub fn get<'a>(docs: &'a [DocEntry], slug: &str) -> Option<&'a DocEntry> {
+    docs.iter().find(|doc| doc.slug == slug)
 }
 
-async fn fetch_docs(
-    client: &reqwest::Client,
-    owner: &str,
-    repo: &str,
-    path: &str,
-    git_ref: &str,
-) -> Result<Vec<DocEntry>, ContentError> {
-    let list_url =
-        format!("https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={git_ref}");
-    let response = client
-        .get(&list_url)
-        .header("accept", "application/vnd.github+json")
-        .header("user-agent", "sigma-info")
-        .send()
-        .await?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(ContentError::Request(format!("list {status}: {body}")));
-    }
-
-    let entries: Vec<GithubContentEntry> = response.json().await?;
-    let mut docs = Vec::new();
-
-    for entry in entries {
-        if !entry.name.ends_with(".md") {
-            continue;
-        }
-        let Some(download_url) = entry.download_url else {
-            continue;
-        };
-        let source = client
-            .get(download_url)
-            .header("user-agent", "sigma-info")
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
-        docs.push(parse_doc(&entry.name, &source));
-    }
-
+async fn fetch_docs() -> Result<Vec<DocEntry>, ContentError> {
+    let (owner, repo) = config::content_repo();
+    let files = fetch_markdown_files(
+        sigma_pg::clients::http::client(),
+        &owner,
+        &repo,
+        &config::content_repo_path(),
+        &config::content_ref(),
+        USER_AGENT,
+    )
+    .await?;
+    let mut docs: Vec<DocEntry> = files
+        .iter()
+        .map(|file| parse_doc(&file.name, &file.markdown))
+        .collect();
+    merge_builtin_docs(&mut docs);
     Ok(docs)
+}
+
+/// Documents embedded in the binary, parsed once per process.
+fn builtin_docs() -> &'static [DocEntry] {
+    static BUILTINS: OnceLock<Vec<DocEntry>> = OnceLock::new();
+    BUILTINS.get_or_init(|| vec![parse_doc("terms.md", include_str!("../content/terms.md"))])
+}
+
+fn merge_builtin_docs(docs: &mut Vec<DocEntry>) {
+    for builtin in builtin_docs() {
+        if let Some(existing) = docs.iter_mut().find(|d| d.slug == builtin.slug) {
+            *existing = builtin.clone();
+        } else {
+            docs.push(builtin.clone());
+        }
+    }
 }
 
 fn parse_doc(filename: &str, source: &str) -> DocEntry {
@@ -141,33 +91,6 @@ fn parse_doc(filename: &str, source: &str) -> DocEntry {
         order,
         body_html,
     }
-}
-
-fn split_front_matter(source: &str) -> (BTreeMap<String, String>, &str) {
-    let mut meta = BTreeMap::new();
-    let Some(rest) = source.strip_prefix("---") else {
-        return (meta, source);
-    };
-    let Some((header, body)) = rest.split_once("\n---") else {
-        return (meta, source);
-    };
-    let body = body.trim_start_matches('\n');
-    for line in header.lines() {
-        if let Some((key, value)) = line.split_once(':') {
-            meta.insert(key.trim().to_string(), value.trim().to_string());
-        }
-    }
-    (meta, body)
-}
-
-fn markdown_to_html(markdown: &str) -> String {
-    let mut html_out = String::new();
-    let parser = Parser::new_ext(
-        markdown,
-        Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES,
-    );
-    html::push_html(&mut html_out, parser);
-    html_out
 }
 
 #[cfg(test)]
@@ -200,5 +123,19 @@ mod tests {
         let terms = docs.iter().find(|d| d.slug == "terms").expect("terms");
         assert_eq!(terms.title, "Terms and Conditions");
         assert!(terms.body_html.contains("Deposit"));
+    }
+
+    #[test]
+    fn sorted_entries_orders_by_order_then_title() {
+        let docs = [
+            parse_doc("b.md", "---\ntitle: Bravo\norder: 2\n---\nb"),
+            parse_doc("a.md", "---\ntitle: Alpha\norder: 2\n---\na"),
+            parse_doc("z.md", "---\ntitle: Zulu\norder: 1\n---\nz"),
+        ];
+        let sorted: Vec<&str> = sorted_entries(&docs)
+            .into_iter()
+            .map(|d| d.slug.as_str())
+            .collect();
+        assert_eq!(sorted, vec!["z", "a", "b"]);
     }
 }

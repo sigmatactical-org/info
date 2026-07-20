@@ -1,23 +1,21 @@
 //! Build spec sheets fetched from the racer GitHub repository at request time.
 
-mod cache_state;
-mod github_content_entry;
 mod spec_document_view;
 mod spec_source;
-mod specs_cache;
-mod specs_error;
-pub(crate) use cache_state::CacheState;
-pub(crate) use github_content_entry::GithubContentEntry;
 pub use spec_document_view::SpecDocumentView;
 pub(crate) use spec_source::SpecSource;
-pub(crate) use specs_cache::SpecsCache;
-pub(crate) use specs_error::SpecsError;
 
-use std::time::Instant;
+use std::sync::Arc;
 
-use pulldown_cmark::{Options, Parser, html};
+use sigma_theme::cache::TtlCache;
+use sigma_theme::content::{
+    ContentError, download_markdown_files, list_repo_dir, markdown_to_html,
+};
 
 use crate::config;
+
+/// User agent identifying this service to the GitHub API.
+const USER_AGENT: &str = "sigma-info";
 
 /// Preferred tab order; unknown documents are appended alphabetically by label.
 const SPEC_TAB_ORDER: &[&str] = &[
@@ -42,86 +40,53 @@ const NON_SPEC_MARKDOWN: &[&str] = &[
     "SECURITY.md",
 ];
 
-/// Load SIGMA-RACER build specs from the racer repository.
-pub async fn sigma_racer_specs() -> Vec<SpecDocumentView> {
-    let (owner, repo) = config::racer_specs_repo();
+/// TTL cache of the GitHub-backed spec listing (single-flight, stale-on-error).
+static SPECS: TtlCache<Vec<SpecDocumentView>> = TtlCache::new();
 
-    let cache = SpecsCache::global();
-    let ttl = config::racer_specs_cache_ttl();
-
-    {
-        let state = cache.state.read().await;
-        if state.is_fresh(ttl) {
-            return state.documents.clone().unwrap_or_default();
-        }
-    }
-
-    match fetch_racer_specs(&cache.client, &owner, &repo, &config::racer_specs_ref()).await {
-        Ok(documents) => {
-            let mut state = cache.state.write().await;
-            state.documents = Some(documents.clone());
-            state.fetched_at = Some(Instant::now());
-            documents
-        }
-        Err(_) => {
-            let state = cache.state.read().await;
-            state.documents.clone().unwrap_or_default()
-        }
-    }
+/// Load SIGMA-RACER build specs from the racer repository, cached for
+/// [`config::racer_specs_cache_ttl`]. Serves an empty list when nothing is
+/// cached and the fetch fails (the template renders an unavailable notice).
+pub async fn sigma_racer_specs() -> Arc<Vec<SpecDocumentView>> {
+    SPECS
+        .get_or_fetch(config::racer_specs_cache_ttl(), fetch_racer_specs)
+        .await
+        .unwrap_or_default()
 }
 
-async fn fetch_racer_specs(
-    client: &reqwest::Client,
-    owner: &str,
-    repo: &str,
-    git_ref: &str,
-) -> Result<Vec<SpecDocumentView>, SpecsError> {
-    let list_url = format!("https://api.github.com/repos/{owner}/{repo}/contents/?ref={git_ref}");
-    let response = client
-        .get(&list_url)
-        .header("accept", "application/vnd.github+json")
-        .header("user-agent", "sigma-info")
-        .send()
-        .await?;
+async fn fetch_racer_specs() -> Result<Vec<SpecDocumentView>, ContentError> {
+    let (owner, repo) = config::racer_specs_repo();
+    let client = sigma_pg::clients::http::client();
+    let entries = list_repo_dir(
+        client,
+        &owner,
+        &repo,
+        "",
+        &config::racer_specs_ref(),
+        USER_AGENT,
+    )
+    .await?;
+    let spec_entries = entries
+        .into_iter()
+        .filter(|entry| is_spec_markdown(&entry.name))
+        .collect();
+    let files = download_markdown_files(client, spec_entries, USER_AGENT).await?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(SpecsError::Request(format!("list {status}: {body}")));
-    }
-
-    let entries: Vec<GithubContentEntry> = response.json().await?;
-    let mut sources = Vec::new();
-
-    for entry in entries {
-        if !is_spec_markdown(&entry.name) {
-            continue;
-        }
-        let Some(download_url) = entry.download_url else {
-            continue;
-        };
-        let markdown = client
-            .get(download_url)
-            .header("user-agent", "sigma-info")
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
-        sources.push(SpecSource {
-            id: spec_id_from_filename(&entry.name),
-            label: spec_label_from_filename(&entry.name),
-            markdown,
-        });
-    }
-
+    let mut sources: Vec<SpecSource> = files
+        .into_iter()
+        .map(|file| SpecSource {
+            id: spec_id_from_filename(&file.name),
+            label: spec_label_from_filename(&file.name),
+            markdown: file.markdown,
+        })
+        .collect();
     sources.sort_by(compare_spec_sources);
+
     Ok(sources
         .into_iter()
         .map(|source| SpecDocumentView {
             id: source.id,
             label: source.label,
-            html: render_markdown_html(&source.markdown),
+            html: markdown_to_html(&source.markdown),
         })
         .collect())
 }
@@ -179,17 +144,6 @@ fn compare_spec_sources(left: &SpecSource, right: &SpecSource) -> std::cmp::Orde
         .then_with(|| left.label.cmp(&right.label))
 }
 
-fn render_markdown_html(markdown: &str) -> String {
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_STRIKETHROUGH);
-
-    let parser = Parser::new_ext(markdown, options);
-    let mut html_output = String::new();
-    html::push_html(&mut html_output, parser);
-    html_output
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,15 +169,6 @@ mod tests {
         assert!(is_spec_markdown("README.md"));
         assert!(is_spec_markdown("engine.md"));
         assert!(is_spec_markdown("emissions_certification.md"));
-    }
-
-    #[test]
-    fn renders_markdown_table() {
-        let md = "## Test\n\n| Item | Spec |\n|---|---|\n| Engine | Yamaha |\n";
-        let html = render_markdown_html(md);
-        assert!(html.contains("<table"));
-        assert!(html.contains("Engine"));
-        assert!(html.contains("Yamaha"));
     }
 
     #[test]

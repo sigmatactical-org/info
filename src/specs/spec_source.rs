@@ -1,9 +1,6 @@
 //! [`SpecSource`].
 
-#[allow(unused_imports)]
-use super::*;
-
-/// One GitHub repo/path the spec listing is drawn from.
+/// One downloaded spec document before rendering: tab id, label, and raw Markdown.
 pub(crate) struct SpecSource {
     pub(crate) id: String,
     pub(crate) label: String,
