@@ -28,12 +28,12 @@ Body in **Markdown**.
 
 Pages are served at `/doc/{slug}` (e.g. `/doc/welcome`). The index lists all documents.
 
-SIGMA-RACER build specifications are served at `/products/sigma-racer` with tabbed markdown fetched from [racer](https://github.com/sigmatactical-org/racer) (GitHub API, cached 30 minutes per instance). The storefront product page links here via **Details**.
+SIGMA-RACER build specifications are served at `/products/sigma-racer` with tabbed markdown fetched from [sigma-racer-specs](https://github.com/sigmatactical-org/sigma-racer-specs) (GitHub API, cached 30 minutes per instance). The storefront product page links here via **Details**.
 
 | Variable | Purpose |
 |----------|---------|
 | `INFO_STORE_PUBLIC_URL` | Store base URL for the “Back to product” link (default `http://127.0.0.1:8082/`) |
-| `INFO_RACER_SPECS_REPO` | GitHub repo for specs (`owner/name`, default `sigmatactical-org/racer`) |
+| `INFO_RACER_SPECS_REPO` | GitHub repo for specs (`owner/name`, default `sigmatactical-org/sigma-racer-specs`) |
 | `INFO_RACER_SPECS_REF` | Git ref for racer specs (default `main`) |
 | `INFO_RACER_SPECS_CACHE_TTL_SECS` | Cache TTL in seconds (default `1800`) |
 
