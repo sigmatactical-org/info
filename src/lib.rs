@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-mod config;
+pub mod config;
 mod content;
 mod specs;
 mod templates;

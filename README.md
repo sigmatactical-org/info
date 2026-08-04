@@ -8,7 +8,7 @@ Markdown-fed information sharing site for Sigma Tactical Group. Documents live i
 
 Repository: https://github.com/sigmatactical-org/info
 
-## Content
+## Features
 
 Add `.md` files under `content/` with optional YAML front matter:
 
