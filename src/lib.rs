@@ -10,7 +10,7 @@ mod templates;
 use std::convert::Infallible;
 use std::sync::OnceLock;
 
-use sigma_theme::warp::TemplateError;
+use sigma_theme::warp::internal_rejection;
 use warp::{Filter, Rejection, Reply};
 
 fn index_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
@@ -28,7 +28,7 @@ fn doc_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
             };
             templates::render_doc_html(doc, &docs)
                 .map(warp::reply::html)
-                .map_err(|_| warp::reject::custom(TemplateError))
+                .map_err(|e| internal_rejection("render info document", e))
         })
 }
 
@@ -39,15 +39,8 @@ fn sigma_racer_page() -> impl Filter<Extract = (impl Reply,), Error = Rejection>
             let spec_documents = specs::sigma_racer_specs().await;
             templates::render_sigma_racer_html(&spec_documents)
                 .map(warp::reply::html)
-                .map_err(|_| warp::reject::custom(TemplateError))
+                .map_err(|e| internal_rejection("render SIGMA-RACER specifications", e))
         })
-}
-
-/// Identity BFF origin for CSP `connect-src`, resolved once per process
-/// (the theme's `security_headers` requires a `'static` borrow).
-fn identity_origin() -> &'static str {
-    static ORIGIN: OnceLock<String> = OnceLock::new();
-    ORIGIN.get_or_init(config::identity_public_origin)
 }
 
 /// Site routes: index, `/doc/{slug}`, `/products/sigma-racer`, `/up`, sigma-pg
@@ -60,7 +53,7 @@ pub fn routes()
             index_page().or(doc_page()).or(sigma_racer_page()),
             sigma_pg::health::warp::health_routes("info", None),
         ),
-        identity_origin(),
+        config::identity_public_origin(),
     )
 }
 

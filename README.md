@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![MSRV](https://img.shields.io/badge/MSRV-1.97.0-blue.svg)](https://www.rust-lang.org)
 
-Markdown-fed information sharing site for Sigma Tactical Group. Documents live in **`content/`** in this repository (or synced from another repo before build), are embedded at compile time, and served with shared [sigma-theme](https://github.com/sigmatactical-org/sigma-theme) chrome.
+Markdown-fed information sharing site for Sigma Tactical Group. Documents live in **`content/`** — read from GitHub at request time and cached in memory, so publishing a document does not require a rebuild — and are served with shared [sigma-theme](https://github.com/sigmatactical-org/sigma-theme) chrome.
 
 Repository: https://github.com/sigmatactical-org/info
 
@@ -28,6 +28,13 @@ Body in **Markdown**.
 
 Pages are served at `/doc/{slug}` (e.g. `/doc/welcome`). The index lists all documents.
 
+Documents are fetched from the content repository's `content/` directory through
+the GitHub API and cached for `INFO_CONTENT_CACHE_TTL_SECS`, so an edit appears
+without a redeploy once the cache expires. `content/terms.md` is additionally
+compiled into the binary and always merged into the listing, which keeps Terms
+reachable when GitHub is unavailable or unreachable from the cluster; if a fetch
+fails outright the site falls back to those built-ins rather than erroring.
+
 SIGMA-RACER build specifications are served at `/products/sigma-racer` with tabbed markdown fetched from [sigma-racer-specs](https://github.com/sigmatactical-org/sigma-racer-specs) (GitHub API, cached 30 minutes per instance). The storefront product page links here via **Details**.
 
 | Variable | Purpose |
@@ -39,23 +46,51 @@ SIGMA-RACER build specifications are served at `/products/sigma-racer` with tabb
 
 ### Separate content repo
 
-Point CI or local builds at another repository:
+Documents default to this repository's own `content/` on `main`. Point the
+service at another repository, path, or ref instead:
+
+| Variable | Purpose |
+|----------|---------|
+| `INFO_CONTENT_REPO` | Content repo as `owner/name` (default `sigmatactical-org/info`) |
+| `INFO_CONTENT_PATH` | Directory within that repo holding the `.md` files (default `content`) |
+| `INFO_CONTENT_REF` | Branch, tag, or commit to read (default `main`) |
+| `INFO_CONTENT_CACHE_TTL_SECS` | How long a fetched listing is reused (default `3600`) |
 
 ```bash
-export INFO_CONTENT_REPO=git@github.com:sigmatactical-org/sigma-info-content.git
-./scripts/prepare-local.sh   # clones into content-repo/ and rsyncs to content/
+export INFO_CONTENT_REPO=sigmatactical-org/sigma-info-content
+cargo run -p sigma-info
 ```
-
-Or place a checkout at `../sigma-info-content` (rsynced automatically).
 
 ## Development
 
 ```bash
-./scripts/prepare-local.sh
 cargo run -p sigma-info
 ```
 
 Open http://localhost:8080
+
+### Shared crates
+
+`sigma-theme` and `sigma-pg` are pinned git dependencies, so a
+fresh clone builds with nothing but `cargo`: the revision in `Cargo.toml` is
+fetched, and `build.rs` writes the `askama.toml` that points at sigma-theme's
+templates wherever Cargo put them.
+
+When one of those crates is checked out beside this repo and you are editing it,
+link the checkouts so your edits are picked up without a push:
+
+```bash
+./scripts/prepare-local.sh
+```
+
+That writes `[patch]` entries into `.cargo/config.toml` (gitignored) for the
+crates it finds and leaves the rest on their pinned revision; it prints what it
+linked. Undo by deleting the file. Note that building against a linked checkout
+rewrites `Cargo.lock` into path form — don't commit that; `platform`'s
+`scripts/relock.sh` restores the git-resolved lockfile CI expects.
+
+Bumping a shared crate is `platform/scripts/pin-shared-revs.sh <crate>` after
+that crate is pushed, which updates every consumer's pin at once.
 
 ## Docker
 
@@ -66,7 +101,7 @@ Release is in **`.github/workflows/release.yml`** when configured. Locally:
 docker build -f Dockerfile build/image
 ```
 
-Runtime image is Debian 13 distroless; Markdown is baked into the binary (no runtime volume required).
+Runtime image is Debian 13 distroless. No runtime volume is required: documents are fetched from GitHub and cached in memory, with the built-in Terms page compiled in as a fallback. The container does need outbound access to the GitHub API.
 
 ## Brand & artwork
 

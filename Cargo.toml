@@ -12,8 +12,8 @@ publish = false
 
 [dependencies]
 askama = "0.16.0"
-sigma-theme = { git = "https://github.com/sigmatactical-org/sigma-theme.git", default-features = false, features = ["askama", "warp", "cache", "content"] }
-sigma-pg = { git = "https://github.com/sigmatactical-org/sigma-pg.git" }
+sigma-theme = { git = "https://github.com/sigmatactical-org/sigma-theme.git", rev = "1b31e85724e4de48ec5c57ecd19bebf34d87962d", default-features = false, features = ["askama", "warp", "cache", "content"] }
+sigma-pg = { git = "https://github.com/sigmatactical-org/sigma-pg.git", rev = "f34cf0eed7bb450df47bedd7dfa5bb10e5f99e47" }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 warp = { version = "0.4.3", features = ["server", "test"] }
 

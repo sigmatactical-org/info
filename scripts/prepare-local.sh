@@ -1,61 +1,32 @@
 #!/usr/bin/env bash
-# Link theme, sync Markdown content repo, and patch the git dependency for local/CI builds.
+# Link sibling Sigma checkouts so local edits to shared crates are picked up.
+#
+# Optional: a fresh clone of this repo builds with `cargo build` alone, because
+# every shared crate is a pinned git dependency and sigma-theme ships its built
+# assets. Run this when working in a tree where sigma-theme, sigma-pg, or another
+# shared crate is checked out beside this repo and being edited.
+#
+# The linking itself lives in the platform repo so every service shares one
+# implementation; without a platform checkout nearby there is nothing to link.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
 
-dir="$ROOT"
-THEME_HELPER=""
-while [[ "$dir" != "/" ]]; do
-  if [[ -f "$dir/scripts/resolve-theme.sh" ]]; then
-    THEME_HELPER="$dir/scripts/resolve-theme.sh"
+helper=""
+for candidate in \
+  "$ROOT/../platform/scripts/link-local-crates.sh" \
+  "$ROOT/../../platform/scripts/link-local-crates.sh"; do
+  if [[ -f "$candidate" ]]; then
+    helper="$candidate"
     break
   fi
-  dir="$(dirname "$dir")"
 done
 
-if [[ -n "$THEME_HELPER" ]]; then
-  # shellcheck source=/dev/null
-  source "$THEME_HELPER"
-  prepare_sigma_theme "$ROOT"
-else
-  THEME_PATH="theme"
-  if [[ -d ../theme/ts ]]; then
-    THEME_PATH="../theme"
-  elif [[ ! -d theme/ts ]]; then
-    git clone --depth 1 https://github.com/sigmatactical-org/sigma-theme.git theme
-  fi
+if [[ -z "$helper" ]]; then
+  echo "No platform checkout beside $ROOT: shared crates resolve from the pinned"
+  echo "git revisions in Cargo.toml. Nothing to prepare; run cargo build."
+  exit 0
 fi
 
-CONTENT_DIR="content"
-if [[ -n "${INFO_CONTENT_REPO:-}" ]]; then
-  if [[ ! -d content-repo ]]; then
-    git clone --depth 1 "$INFO_CONTENT_REPO" content-repo
-  else
-    git -C content-repo pull --ff-only
-  fi
-  rsync -a --delete content-repo/ "$CONTENT_DIR/"
-elif [[ -d ../sigma-info-content ]]; then
-  rsync -a --delete ../sigma-info-content/ "$CONTENT_DIR/"
-fi
-
-if [[ -n "$THEME_HELPER" ]]; then
-  write_theme_patch_files "$ROOT"
-  write_sigma_pg_patch "$ROOT"
-  write_site_nav_patches "$ROOT"
-  write_askama_config "$ROOT"
-  build_theme_ts "$ROOT"
-else
-  mkdir -p .cargo
-  cat >.cargo/config.toml <<EOF
-[patch."https://github.com/sigmatactical-org/sigma-theme.git"]
-sigma-theme = { path = "$THEME_PATH" }
-EOF
-  cat >askama.toml <<EOF
-[general]
-dirs = ["templates", "$THEME_PATH/assets/templates"]
-EOF
-  (cd "$THEME_PATH/ts" && npm ci && npm run check && npm run build)
-fi
-
-echo "sigma-theme ($ROOT/${THEME_PATH:-theme}) and content ($CONTENT_DIR) ready for cargo build."
+# shellcheck source=/dev/null
+source "$helper"
+link_local_crates "$ROOT"
